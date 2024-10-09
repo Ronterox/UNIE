@@ -18,7 +18,8 @@ outDir="output"
 outFile="output"
 
 genSideFile() {
-request="$*"
+content=$1
+query=$2
 cat > "$outDir/$sideFile" << EOM
 {
   "id": "513e4bb6-ec62-4b20-9328-ed06ee5cc7e3",
@@ -62,7 +63,7 @@ cat > "$outDir/$sideFile" << EOM
         ["css=.\\\_prosemirror-parent_15ceg_1", "css:finder"],
         ["xpath=//div/div[2]/div/div/div[2]/div", "xpath:position"]
       ],
-      "value": "${request}"
+      "value": "${content}\n\n${query}"
     }, {
       "id": "8f3c7c85-074f-4f4e-aced-c834a6bac227",
       "comment": "",
@@ -116,11 +117,14 @@ pdftotext -raw -enc 'UTF-8' "$pdf" "$outDir/$outFile.txt"
 split -l "$pageSize" --numeric-suffixes "$outDir/$outFile.txt" "$outDir/page"
 
 pages=$(ls output/page*)
+i=0
 for page in $pages; do
     parse_file=$(tr -cd '[:print:]' < "$page")
 
-    genSideFile "$parse_file\n\n$query"
-    selenium-side-runner -c "$firefoxConfig" "$outDir/$sideFile" >> "$outFile.md"
+    genSideFile "$parse_file" "$query en html interactivo"
+    selenium-side-runner -c "$firefoxConfig" "$outDir/$sideFile" > "$outDir/$outFile$i.html"
+
+    i=$((i+1))
 done
 
 echo "Done!"
