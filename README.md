@@ -12,3 +12,4 @@ Will probably add:
 - Extra summaries as info panels, and the whole chunk from where it came from
 - Show total time taken
 - Make it a hidden task, and pretty loading bar
+- Output a folder with the books name

@@ -39,7 +39,7 @@
         $('button').forEach(button => {
             button.addEventListener('click', () => {
                 window.location.href = button.children[1].src
-            })
+            });
         });
 
     </script>
