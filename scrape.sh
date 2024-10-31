@@ -20,8 +20,8 @@ outDir="output"
 outFile="output"
 
 genSideFile() {
-content=$1
-query=$2
+local content=$1
+local query=$2
 cat > "$outDir/$sideFile" << EOM
 {
   "id": "513e4bb6-ec62-4b20-9328-ed06ee5cc7e3",
