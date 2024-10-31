@@ -1,2 +1,4 @@
 output/
-derecho.pdf
+*.pdf
+*.md
+!README.md

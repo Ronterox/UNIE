@@ -2,17 +2,19 @@
 
 # CSP: default-src * 'unsafe-inline' 'unsafe-eval'; script-src * 'unsafe-inline' 'unsafe-eval'; connect-src * 'unsafe-inline'; img-src * data: blob: 'unsafe-inline'; frame-src *; style-src * 'unsafe-inline';
 
-if [ "$#" -ne 2 ]; then
-    echo "Usage: $0 <pdf> <query>"
+if [ "$#" -ne 4 ]; then
+    echo "Usage: $0 <pdf> <query> <start-page> <end-page>"
     exit 1
 fi
 
 firefoxConfig="browserName=firefox moz:firefoxOptions.args=[--profile=$HOME/.mozilla/firefox/vu8s1cle.default-release-1662927092603]"
-pageSize=50 # lines
+pageSize=200 # lines
 
 sideFile="gpt.side"
 pdf=$1
 query=$2
+startPage=$3
+endPage=$4
 
 outDir="output"
 outFile="output"
@@ -81,7 +83,7 @@ cat > "$outDir/$sideFile" << EOM
       "targets": [
         ["css=.items-center > span:nth-child(2) .icon-md-heavy", "css:finder"]
       ],
-      "value": "30000"
+      "value": "120000"
     }, {
       "id": "4328952c-81f0-49a3-a476-76d7e72027d9",
       "comment": "",
@@ -113,20 +115,35 @@ EOM
 }
 
 mkdir -p "$outDir"
-pdftotext -raw -enc 'UTF-8' "$pdf" "$outDir/$outFile.txt"
+pdftotext -raw -enc 'UTF-8' -f $startPage -l $endPage "$pdf" "$outDir/$outFile.txt"
 split -l "$pageSize" --numeric-suffixes "$outDir/$outFile.txt" "$outDir/page"
 
+css='<link rel="stylesheet" href="styles.css">'
 pages=$(ls output/page*)
+size=$(ls output/page* | wc -l)
+
 i=0
 for page in $pages; do
+    echo $page
     parse_file=$(tr -cd '[:print:]' < "$page")
+    start=$(date +%s)
 
     genSideFile "$parse_file" "$query en html interactivo"
-    selenium-side-runner -c "$firefoxConfig" "$outDir/$sideFile" > "$outDir/$outFile$i.html"
+
+    echo "$css" > "$outDir/$outFile$i.html"
+    selenium-side-runner -c "$firefoxConfig" "$outDir/$sideFile" >> "$outDir/$outFile$i.html"
+
+    took=$(echo "$(date +%s) - $start" | bc -l)
+    echo "Page $i/$size took $took seconds"
+    echo "Expected to take $(echo "$took * ($size - $i)" | bc -l) seconds"
 
     i=$((i+1))
 done
 
-echo "Done!"
+echo "Done! Now parsing..."
+
+./parse.sh
+
+echo "Now Really done!"
 
 
