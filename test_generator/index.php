@@ -41,9 +41,12 @@
                         }
                         $output .= <<<HTML
                             <input type='button' value='Submit'
-                                _="on click get the closest @data-correct then
-                                    if @selected == it then alert('You are correct!')
-                                    else call alert('You are wrong!') end"
+                                _="on click get the closest parent @data-correct then
+                                    set local aria to @selected != it then
+                                    repeat in <input/>
+                                        set its @aria-invalid to aria
+                                        then log it
+                                    end"
                             />
                             </fieldset>
                         HTML;
