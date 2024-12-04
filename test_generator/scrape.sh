@@ -4,21 +4,20 @@ set -e
 
 # CSP: default-src * 'unsafe-inline' 'unsafe-eval'; script-src * 'unsafe-inline' 'unsafe-eval'; connect-src * 'unsafe-inline'; img-src * data: blob: 'unsafe-inline'; frame-src *; style-src * 'unsafe-inline';
 
-if [ "$#" -ne 4 ]; then
-    echo "Usage: $0 <pdf> <query> <start-page> <end-page>"
+if [ "$#" -ne 3 ]; then
+    echo "Usage: $0 <pdf> <start-page> <end-page>"
     exit 1
 fi
 
 firefoxConfig="browserName=firefox moz:firefoxOptions.args=[--profile=$HOME/.mozilla/firefox/vu8s1cle.default-release-1662927092603]"
-pageSize=200 # lines
 
 sideFile="gpt.side"
 pdf=$1
-query=$2
-startPage=$3
-endPage=$4
+startPage=$2
+endPage=$3
 
-outDir="${pdf%.*}"
+name="${pdf##*/}"
+outDir="${name%.*}"
 outDir="${outDir//[[:space:]]/_}"
 outDir="${outDir,,}"
 
@@ -121,24 +120,20 @@ cat > "$outDir/$sideFile" << EOM
 EOM
 }
 
-mkdir -p "$outDir"
-pdftotext -raw -enc 'UTF-8' -f $startPage -l $endPage "$pdf" "$outDir/$outFile.txt"
-split -l "$pageSize" --numeric-suffixes "$outDir/$outFile.txt" "$outDir/page"
+mkdir -p "$outDir" "$outDir/pdf" "$outDir/json"
+query="De la informacion anterior genera preguntas de seleccion simple en forma de json siguiendo:\n{ question: string, answers: string[], correct: number }"
 
-css='<link rel="stylesheet" href="styles.css">'
-pages=$(ls $outDir/page*)
-size=$(ls $outDir/page* | wc -l)
-
-i=0
-for page in $pages; do
-    echo "$page"
-    parse_file=$(tr -cd '[:print:]' < "$page")
+i=$startPage
+while [ $i -lt $endPage ]; do
     start=$(date +%s)
 
-    genSideFile "$parse_file" "$query en html interactivo" "$timeout"
+    qpdf "$pdf" --pages . "$i" -- "$outDir/pdf/${outFile}_$i.pdf"
+    pdftotext -raw -enc 'UTF-8' "$outDir/pdf/${outFile}_$i.pdf" "$outDir/pdf/${outFile}_$i.txt"
 
-    echo "$css" > "$outDir/$outFile$i.html"
-    if selenium-side-runner -c "$firefoxConfig" "$outDir/$sideFile" >> "$outDir/$outFile$i.html"; then
+    parse_file=$(tr -cd '[:print:]' < "$outDir/pdf/${outFile}_$i.txt")
+    genSideFile "$parse_file" "$query" "$timeout"
+
+    if selenium-side-runner -c "$firefoxConfig" "$outDir/$sideFile" | grep -Pzo '\[\s*\{(?:.|\n)*?\}\s*\]' > "$outDir/json/${outFile}_$i.json"; then
         timeout=$(echo "$(date +%s) - $start + 5" | bc -l)
     fi
 
@@ -146,9 +141,9 @@ for page in $pages; do
 
     secs=$(echo "$(date +%s) - $start" | bc -l)
     mins=$(((secs / 60) + (secs % 60 > 0)))
-    echo "Page $i/$size took ${mins}m $(echo "$secs % 60" | bc -l)s"
+    echo "Page $i/$endPage took ${mins}m $(echo "$secs % 60" | bc -l)s"
 
-    total=$(echo "$secs * ($size - $i)" | bc -l)
+    total=$(echo "$secs * ($endPage - $i)" | bc -l)
     mins=$(((total / 60) + (total % 60 > 0)))
     echo "Expected to take ${mins}m $(echo "$total % 60" | bc -l)s"
 done
@@ -158,5 +153,4 @@ echo "Done! Now parsing..."
 ./parse.sh "$outDir"
 
 echo "Now Really done!"
-
 
