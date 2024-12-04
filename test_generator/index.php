@@ -25,7 +25,7 @@
 <body>
     <h1>Start learning now!</h1>
     <?php
-    foreach (glob("output/*.html") as $filename) {
+    foreach (glob("*.html") as $filename) {
         echo "
         <button>
             <h2> Press here to open! </h2>

@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -e
+
 # CSP: default-src * 'unsafe-inline' 'unsafe-eval'; script-src * 'unsafe-inline' 'unsafe-eval'; connect-src * 'unsafe-inline'; img-src * data: blob: 'unsafe-inline'; frame-src *; style-src * 'unsafe-inline';
 
 if [ "$#" -ne 4 ]; then
@@ -16,12 +18,17 @@ query=$2
 startPage=$3
 endPage=$4
 
-outDir="output"
-outFile="output"
+outDir="${pdf%.*}"
+outDir="${outDir//[[:space:]]/_}"
+outDir="${outDir,,}"
+
+outFile="$outDir"
+timeout=120
 
 genSideFile() {
-local content=$1
+local content=${1//\"/\\\"}
 local query=$2
+local timeout=$(($3 * 1000))
 cat > "$outDir/$sideFile" << EOM
 {
   "id": "513e4bb6-ec62-4b20-9328-ed06ee5cc7e3",
@@ -83,7 +90,7 @@ cat > "$outDir/$sideFile" << EOM
       "targets": [
         ["css=.items-center > span:nth-child(2) .icon-md-heavy", "css:finder"]
       ],
-      "value": "120000"
+      "value": "${timeout}"
     }, {
       "id": "4328952c-81f0-49a3-a476-76d7e72027d9",
       "comment": "",
@@ -119,30 +126,36 @@ pdftotext -raw -enc 'UTF-8' -f $startPage -l $endPage "$pdf" "$outDir/$outFile.t
 split -l "$pageSize" --numeric-suffixes "$outDir/$outFile.txt" "$outDir/page"
 
 css='<link rel="stylesheet" href="styles.css">'
-pages=$(ls output/page*)
-size=$(ls output/page* | wc -l)
+pages=$(ls $outDir/page*)
+size=$(ls $outDir/page* | wc -l)
 
 i=0
 for page in $pages; do
-    echo $page
+    echo "$page"
     parse_file=$(tr -cd '[:print:]' < "$page")
     start=$(date +%s)
 
-    genSideFile "$parse_file" "$query en html interactivo"
+    genSideFile "$parse_file" "$query en html interactivo" "$timeout"
 
     echo "$css" > "$outDir/$outFile$i.html"
-    selenium-side-runner -c "$firefoxConfig" "$outDir/$sideFile" >> "$outDir/$outFile$i.html"
-
-    took=$(echo "$(date +%s) - $start" | bc -l)
-    echo "Page $i/$size took $took seconds"
-    echo "Expected to take $(echo "$took * ($size - $i)" | bc -l) seconds"
+    if selenium-side-runner -c "$firefoxConfig" "$outDir/$sideFile" >> "$outDir/$outFile$i.html"; then
+        timeout=$(echo "$(date +%s) - $start + 5" | bc -l)
+    fi
 
     i=$((i+1))
+
+    secs=$(echo "$(date +%s) - $start" | bc -l)
+    mins=$(((secs / 60) + (secs % 60 > 0)))
+    echo "Page $i/$size took ${mins}m $(echo "$secs % 60" | bc -l)s"
+
+    total=$(echo "$secs * ($size - $i)" | bc -l)
+    mins=$(((total / 60) + (total % 60 > 0)))
+    echo "Expected to take ${mins}m $(echo "$total % 60" | bc -l)s"
 done
 
 echo "Done! Now parsing..."
 
-./parse.sh
+./parse.sh "$outDir"
 
 echo "Now Really done!"
 

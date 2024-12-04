@@ -1,3 +1,4 @@
 output/
 *.pdf
 !README.md
+!pdf/*.pdf
